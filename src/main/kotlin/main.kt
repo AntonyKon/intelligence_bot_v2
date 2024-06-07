@@ -1,0 +1,218 @@
+import config.DatabaseConfig
+import dev.inmo.tgbotapi.extensions.api.bot.getMe
+import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
+import dev.inmo.tgbotapi.extensions.api.delete
+import dev.inmo.tgbotapi.extensions.api.send.reply
+import dev.inmo.tgbotapi.extensions.api.send.sendMessage
+import dev.inmo.tgbotapi.extensions.api.send.setMessageReaction
+import dev.inmo.tgbotapi.extensions.api.telegramBot
+import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
+import dev.inmo.tgbotapi.extensions.behaviour_builder.buildBehaviourWithLongPolling
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onChatEvent
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
+import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
+import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
+import dev.inmo.tgbotapi.types.message.content.TextContent
+import dev.inmo.tgbotapi.types.toChatId
+import dev.inmo.tgbotapi.types.userLink
+import enumeration.DiceType
+import enumeration.FeatureToggle
+import filter.OnOffFilter
+import kotlinx.coroutines.runBlocking
+import org.koin.core.context.startKoin
+import org.koin.core.logger.Level
+import org.koin.environmentProperties
+import org.koin.fileProperties
+import org.koin.ksp.generated.*
+import persistence.dao.FeatureToggleDaoService
+import persistence.table.START_MONEY_VALUE
+import service.TelegramService
+import kotlin.math.abs
+
+val ENV_TOKEN: String = System.getenv("BOT_TOKEN")
+
+val koin = startKoin {
+    printLogger(Level.DEBUG)
+    defaultModule()
+    fileProperties()
+    environmentProperties()
+}.koin
+
+fun main(): Unit = runBlocking {
+    val telegramService = koin.get<TelegramService>()
+    val featureToggleDaoService = koin.get<FeatureToggleDaoService>()
+    koin.get<DatabaseConfig>().start()
+
+    val bot = telegramBot(ENV_TOKEN)
+    bot.buildBehaviourWithLongPolling {
+        handleStartOrJoinCommand(telegramService)
+
+        handlePidorCommand(telegramService)
+
+        handleHandsomeCommand(telegramService)
+
+        handleDice(telegramService, featureToggleDaoService)
+
+        handleEnableMoneyForSlots(featureToggleDaoService)
+
+        handleChatEvent()
+    }.join()
+}
+
+private suspend fun BehaviourContext.handleStartOrJoinCommand(telegramService: TelegramService) =
+    onCommand("(start)|(join)".toRegex()) {
+        loggedTelegramTransaction {
+            withChatIdAndUserId(it) { chatId, userId ->
+                runCatching {
+                    val replyText =
+                        if (telegramService.createUserIfNotExist(chatId, userId)) {
+                            "Привет, ${it.fullNameOfUserOrBlank().ifBlank { "неизвестный" }}!\n\n" +
+                                "Ты подключился к боту! Для начала тебе выдано ${START_MONEY_VALUE.toTelegramMoney()}. " +
+                                "Трать их с умом!"
+                        } else {
+                            "Ты уже подключен к боту!"
+                        }
+                    reply(it, replyText)
+                }.onFailure { t ->
+                    t.printStackTrace()
+                    reply(it, t.buildReplyMessage())
+                }
+            }
+        }
+    }
+
+private suspend fun BehaviourContext.handlePidorCommand(telegramService: TelegramService) = onCommand("pidor") {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, _ ->
+            runCatching {
+                val (user, isNeedToChangeBalance) = telegramService.findFagUser(chatId)
+                val chatMember = getChatMember(chatId = chatId.toChatId(), userId = user.telegramId.toChatId())
+                val nameAndUsername = listOf(
+                    chatMember.fullNameOrBlank().ifBlank { "пользователь без имени" },
+                    chatMember.user.username?.username ?: chatMember.user.userLink
+                ).joinToString(" ")
+
+                if (isNeedToChangeBalance) {
+                    val (updatedUser, subtractedMoney) = telegramService.updateBalanceForFag(user)
+                    val replyText = "Сегодняшний пидор дня - $nameAndUsername!!!\n\n" +
+                        "В качестве наказания у тебя было отобрано ${abs(subtractedMoney).toTelegramMoney()}," +
+                        " и сейчас у тебя ${updatedUser.money.toTelegramMoney()}"
+                    sendMessage(chatId.toChatId(), replyText)
+                } else {
+                    sendMessage(chatId.toChatId(), "Пидор дня уже определен: это $nameAndUsername!!!")
+                }
+            }.onFailure { t ->
+                t.printStackTrace()
+                reply(it, t.buildReplyMessage())
+            }
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleHandsomeCommand(telegramService: TelegramService) =
+    onCommand("handsome") {
+        loggedTelegramTransaction {
+            ifKnownUser(it) { chatId, _ ->
+                runCatching {
+                    val (user, isNeedToChangeBalance) = telegramService.findHandsomeUser(chatId)
+                    val chatMember = getChatMember(chatId = chatId.toChatId(), userId = user.telegramId.toChatId())
+                    val nameAndUsername = listOf(
+                        chatMember.fullNameOrBlank().ifBlank { "пользователь без имени" },
+                        chatMember.user.username?.username ?: chatMember.user.userLink
+                    ).joinToString(" ")
+
+                    if (isNeedToChangeBalance) {
+                        val (updatedUser, subtractedMoney) = telegramService.updateBalanceForHandsome(user)
+                        val replyText = "Сегодняшний красавчик дня - $nameAndUsername!!!\n\n" +
+                            "В качестве награды тебе было выдано ${abs(subtractedMoney).toTelegramMoney()}," +
+                            " и сейчас у тебя ${updatedUser.money.toTelegramMoney()}"
+                        sendMessage(chatId.toChatId(), replyText)
+                    } else {
+                        sendMessage(chatId.toChatId(), "Красавчик дня уже определен: это $nameAndUsername!!!")
+                    }
+                }.onFailure { t ->
+                    t.printStackTrace()
+                    reply(it, t.buildReplyMessage())
+                }
+            }
+        }
+    }
+
+private suspend fun BehaviourContext.handleDice(
+    telegramService: TelegramService,
+    featureToggleDaoService: FeatureToggleDaoService
+) = onDice {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, userId ->
+            if (
+                featureToggleDaoService.readValueForEnum(chatId, FeatureToggle.MONEY_FOR_SLOT_MACHINE).toBoolean() &&
+                DiceType.getType(it.content.dice) == DiceType.SLOT_MACHINE &&
+                it.forwardOrigin == null
+            ) {
+                runCatching {
+                    val (user, fee) = telegramService.takeMoneyForSlot(chatId, userId)
+
+                    if (fee != null) {
+                        telegramService.processSlotMachineResult(user, it.content.dice)
+                            ?.let { pair ->
+                                val (updatedUser, prize) = pair
+                                val replyText =
+                                    "На слот-машину было потрачено ${fee.toTelegramMoney()}.\n" +
+                                        "Ты выиграл $prize\uD83C\uDF89\uD83C\uDF89\uD83C\uDF89\n" +
+                                        "Теперь у тебя ${updatedUser.money.toTelegramMoney()}"
+                                reply(it, replyText)
+                                setMessageReaction(it, "\uD83D\uDD25")
+                            } ?: (
+                            "На слот-машину было потрачено ${fee.toTelegramMoney()}.\n" +
+                                "К сожалению, ты ничего не выиграл(\n" +
+                                "У тебя ${user.money.toTelegramMoney()}"
+                            ).let { replyText -> reply(it, replyText) }
+                    } else {
+                        sendMessage(
+                            chatId.toChatId(),
+                            "${it.fullNameOfUserOrBlank()}, У тебя недостаточно средств на слот машину("
+                        )
+                        delete(it)
+                    }
+                }.onFailure { t ->
+                    t.printStackTrace()
+                    reply(it, t.buildReplyMessage())
+                }
+            }
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleEnableMoneyForSlots(
+    featureToggleDaoService: FeatureToggleDaoService
+) = onCommandWithArgs("slots", OnOffFilter()) { message: CommonMessage<TextContent>, strings: Array<String> ->
+    loggedTelegramTransaction {
+        ifAdmin(message) { chatId, userId ->
+            val on = strings.first().equals("on", ignoreCase = true)
+            featureToggleDaoService.updateOrCreateValueForFeatureToggle(
+                FeatureToggle.MONEY_FOR_SLOT_MACHINE,
+                chatId,
+                on.toString()
+            )
+
+            reply(message, "Получение денег за слот машину ${if (on) "включено" else "выключено"}!")
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleChatEvent() =
+    onChatEvent {
+        val chatId = it.chat.id
+        it.chatEvent.ifNewChatMembers {
+            it.members.find {
+                it.username == getMe().username
+            }?.let { sendMessage(chatId, GREETINGS_MESSAGE) }
+        }
+    }
+
+private const val GREETINGS_MESSAGE = "Всем добрый денек (кроме Клюшкина)!!!\n\n" +
+    "Для разблокировки всех функций бота ему надо выдать права админа.\n" +
+    "Каждый участник бота, кто хочет получить доступ к функциям, должен присоединиться к системе.\n" +
+    "Для этого надо ввести команду /join"

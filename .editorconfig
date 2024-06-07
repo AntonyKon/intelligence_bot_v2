@@ -1,0 +1,9 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+disabled_rules=import-ordering,final-newline,no-wildcard-imports
+
+[*.yml]
+indent_size = 2
