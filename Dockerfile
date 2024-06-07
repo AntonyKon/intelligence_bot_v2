@@ -23,4 +23,4 @@ ENTRYPOINT exec java \
     -Duser.region=RU \
     -Duser.timezone=${TZ} \
     -Djava.security.egd=file:/dev/./urandom  \
-    -jar build/libs/intelligence_bot-0.0.1-SNAPSHOT.jar
+    -jar build/libs/intelligence-1.0-SNAPSHOT-sources.jar
