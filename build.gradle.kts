@@ -22,8 +22,6 @@ sourceSets.main {
     java.srcDirs("build/generated/ksp/main/kotlin")
 }
 
-val ktlint by configurations.creating
-
 dependencies {
     testImplementation(kotlin("test"))
 
