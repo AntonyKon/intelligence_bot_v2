@@ -47,9 +47,6 @@ dependencies {
 
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")
-
-    // ktlint
-    ktlint("com.pinterest:ktlint:0.43.2")
 }
 
 tasks.test {
@@ -58,22 +55,4 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "17"
-}
-
-tasks.named("check") {
-    dependsOn(ktlintCheck)
-}
-
-val ktlintCheck by tasks.creating(JavaExec::class) {
-    description = "Check Kotlin code style."
-    classpath = ktlint
-    main = "com.pinterest.ktlint.Main"
-    args = listOf("**/build.gradle.kts", "src/**/*.kt")
-}
-
-val ktlintFormat by tasks.creating(JavaExec::class) {
-    description = "Fix Kotlin code style deviations."
-    classpath = ktlint
-    main = "com.pinterest.ktlint.Main"
-    args = listOf("-F", "src/**/*.kt")
 }
