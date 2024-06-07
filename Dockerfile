@@ -14,7 +14,7 @@ COPY . .
 
 RUN ls
 
-RUN ./gradlew clean build bootJar
+RUN ./gradlew clean build kotlinSourcesJar
 
 ENTRYPOINT exec java \
 # для сертификатов минцифры. https://wiki.sberned.ru/pages/viewpage.action?pageId=168767227
