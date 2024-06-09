@@ -1,7 +1,7 @@
 FROM bellsoft/liberica-openjdk-alpine:17
 
 EXPOSE 8080
-#ARG JAVA_OPTS
+ARG JAVA_OPTS
 
 WORKDIR /app
 ENV TZ "UTC"
@@ -10,7 +10,7 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
-#COPY . .
+COPY . .
 
 RUN ls
 
