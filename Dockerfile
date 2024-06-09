@@ -17,7 +17,6 @@ RUN ls
 RUN ./gradlew clean build
 
 ENTRYPOINT exec java \
-# для сертификатов минцифры. https://wiki.sberned.ru/pages/viewpage.action?pageId=168767227
     -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts \
     -Duser.language=ru \
     -Duser.region=RU \
