@@ -36,7 +36,7 @@ dependencies {
 
     // exposed - db & orm management
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
-    runtimeOnly("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-dao:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
 
@@ -53,4 +53,17 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "17"
+}
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "MainKt"
+    }
+    configurations["compileClasspath"].forEach { file: File ->
+        println(file.absoluteFile)
+        from(zipTree(file.absoluteFile)).also {
+            println(it)
+        }
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
