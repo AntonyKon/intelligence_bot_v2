@@ -10,5 +10,7 @@ enum class TelegramError(
     USER_LIST_IS_EMPTY("Список пользователей пуст, невозможно выполнить действие"),
     UNKNOWN_MESSAGE_TYPE("Неопознанный тип сообщения"),
     UNKNOWN_FEATURE("Неизвестный фичатогл"),
-    USER_IS_NOT_FOUND("Пользователь не найден")
+    USER_IS_NOT_FOUND("Пользователь не найден"),
+    DB_NOT_FOUND("База данных не найдена"),
+    FISHING_NOT_FOUND("Не удалось получить улов")
 }

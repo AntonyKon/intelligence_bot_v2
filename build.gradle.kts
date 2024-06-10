@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "1.8.20"
     id("com.google.devtools.ksp") version "1.8.21-1.0.11"
+    kotlin("plugin.serialization") version "1.8.20"
 }
 
 group = "ru.bot"
@@ -45,6 +46,9 @@ dependencies {
 
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")
+
+    // kaml - yaml reading
+    implementation("com.charleskorn.kaml:kaml:0.59.0")
 }
 
 tasks.test {

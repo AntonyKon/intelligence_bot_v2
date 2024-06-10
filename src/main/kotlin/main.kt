@@ -2,6 +2,7 @@ import config.DatabaseConfig
 import dev.inmo.tgbotapi.extensions.api.bot.getMe
 import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
 import dev.inmo.tgbotapi.extensions.api.delete
+import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.api.send.sendMessage
 import dev.inmo.tgbotapi.extensions.api.send.setMessageReaction
@@ -13,13 +14,20 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onComman
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
 import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
+import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
+import dev.inmo.tgbotapi.types.message.Markdown
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
+import dev.inmo.tgbotapi.types.message.textsources.pre
 import dev.inmo.tgbotapi.types.toChatId
 import dev.inmo.tgbotapi.types.userLink
+import enumeration.CatchType
 import enumeration.DiceType
 import enumeration.FeatureToggle
+import exception.TelegramBusinessException
+import exception.TelegramError
 import filter.OnOffFilter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
@@ -28,7 +36,9 @@ import org.koin.fileProperties
 import org.koin.ksp.generated.*
 import persistence.dao.FeatureToggleDaoService
 import persistence.table.START_MONEY_VALUE
+import service.FishingService
 import service.TelegramService
+import java.io.File
 import kotlin.math.abs
 
 val ENV_TOKEN: String = System.getenv("BOT_TOKEN")
@@ -57,7 +67,15 @@ fun main(): Unit = runBlocking {
 
         handleEnableMoneyForSlots(featureToggleDaoService)
 
+        handleUserMoney(telegramService)
+
+        handleMoneyRate(telegramService)
+
+        handleFishing(telegramService)
+
         handleChatEvent()
+
+        handleDbCommand()
     }.join()
 }
 
@@ -189,7 +207,7 @@ private suspend fun BehaviourContext.handleEnableMoneyForSlots(
     featureToggleDaoService: FeatureToggleDaoService
 ) = onCommandWithArgs("slots", OnOffFilter()) { message: CommonMessage<TextContent>, strings: Array<String> ->
     loggedTelegramTransaction {
-        ifAdmin(message) { chatId, userId ->
+        ifAdmin(message) { chatId, _ ->
             val on = strings.first().equals("on", ignoreCase = true)
             featureToggleDaoService.updateOrCreateValueForFeatureToggle(
                 FeatureToggle.MONEY_FOR_SLOT_MACHINE,
@@ -198,6 +216,78 @@ private suspend fun BehaviourContext.handleEnableMoneyForSlots(
             )
 
             reply(message, "Получение денег за слот машину ${if (on) "включено" else "выключено"}!")
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleDbCommand() = onCommand("db") {
+    loggedTelegramTransaction {
+        ifAdmin(it) { _, _ ->
+            runCatching {
+                val dbSuffix = ".mv.db"
+                val dbName = koin.getProperty<String>("database.url")
+                    ?.let { it.removePrefix("jdbc:h2:file:") }
+                    ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
+                val file = File(dbName + dbSuffix).takeIf { it.exists() }
+                    ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
+                sendDocument(
+                    it.chat,
+                    file.readBytes().asMultipartFile(dbName + dbSuffix)
+                )
+            }.onFailure { t ->
+                reply(it, t.buildReplyMessage())
+            }
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleUserMoney(telegramService: TelegramService) = onCommand("money") {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, userId ->
+            val user = telegramService.findUserByGroupIdAndUserId(chatId, userId)!!
+            reply(it, "У тебя на балансе ${user.money.toTelegramMoney()}")
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleMoneyRate(telegramService: TelegramService) = onCommand("money_rating") {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, _ ->
+            var maxNameLen: Int
+
+            telegramService.findAllUsersByGroupId(chatId)
+                .sortedByDescending { it.money }
+                .map {
+                    getChatMember(chatId.toChatId(), it.telegramId.toChatId()) to it.money
+                }.also {
+                    maxNameLen = it.maxOf { it.first.fullNameOrBlank().ifBlank { "Без имени" }.length } + 5
+                }
+                .mapIndexed { index, pair ->
+                    "${index + 1}. " +
+                        pair.first.fullNameOrBlank().ifBlank { "Без имени" }.let {
+                            it.plus(" ".repeat(maxNameLen - it.length))
+                        } + String.format("%15s", pair.second.toTelegramMoney())
+                }.joinToString("\n")
+                .let { sendMessage(chatId.toChatId(), pre(it).markdown, parseMode = Markdown) }
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleFishing(telegramService: TelegramService) = onCommand("fishing") {
+    loggedTelegramTransaction { 
+        ifKnownUser(it) { chatId, userId ->
+            val (user, catch) = telegramService.processFishing(chatId, userId)
+
+            val replyText = when (catch.name) {
+                CatchType.LARCENY -> telegramService.findAllUsersByGroupId(chatId)
+                    .random()
+                    .let { getChatMember(chatId.toChatId(), userId.toChatId()) }
+                    .user.username!!.username
+                    .let { catch.message.format(it, abs(catch.regard).toTelegramMoney()) }
+                else -> catch.message.format(abs(catch.regard).toTelegramMoney())
+            }
+            sendMessage(chatId.toChatId(), replyText)
+            sendMessage(chatId.toChatId(), "Сейчас у тебя ${user.money.toTelegramMoney()}")
         }
     }
 }

@@ -18,7 +18,8 @@ import kotlin.math.roundToLong
 class TelegramService(
     private val groupUserDaoService: GroupUserDaoService,
     private val handsomeFagFlagDaoService: HandsomeFagFlagDaoService,
-    private val handsomeFagStatsDaoService: HandsomeFagStatsDaoService
+    private val handsomeFagStatsDaoService: HandsomeFagStatsDaoService,
+    private val fishingService: FishingService
 ) {
     fun createUserIfNotExist(groupId: Long, userId: Long) = if (!groupUserDaoService.userExists(userId, groupId)) {
         groupUserDaoService.createNewUser(userId, groupId)
@@ -33,8 +34,7 @@ class TelegramService(
             handsomeFagFlag.fagFlagDate?.isBefore(LocalDate.now()) != false ||
             handsomeFagFlag.fagFlagUser == null
         ) {
-            groupUserDaoService.findAllByGroup(groupId)
-                .toList()
+            findAllUsersByGroupId(groupId)
                 .randomOrNull()
                 ?.also { handsomeFagFlagDaoService.markUserAsFag(groupId, it) }
                 ?.also { handsomeFagStatsDaoService.createOrUpdateStatsForUser(it, true, false) }
@@ -54,8 +54,7 @@ class TelegramService(
             handsomeFagFlag.handsomeFlagDate?.isBefore(LocalDate.now()) != false ||
             handsomeFagFlag.handsomeFlagUser == null
         ) {
-            groupUserDaoService.findAllByGroup(groupId)
-                .toList()
+            findAllUsersByGroupId(groupId)
                 .randomOrNull()
                 ?.also { handsomeFagFlagDaoService.markUserAsHandsome(groupId, it) }
                 ?.also { handsomeFagStatsDaoService.createOrUpdateStatsForUser(it, false, true) }
@@ -113,8 +112,23 @@ class TelegramService(
 
     fun userExists(groupId: Long, userId: Long) = groupUserDaoService.userExists(userId, groupId)
 
-    fun isUserAdmin(groupId: Long, userId: Long) = groupUserDaoService.findByUserIdAndChatId(userId, groupId)
-        .firstOrNull()?.isAdmin ?: false
+    fun isUserAdmin(groupId: Long, userId: Long) = findUserByGroupIdAndUserId(groupId, userId)?.isAdmin ?: false
+
+    fun findUserByGroupIdAndUserId(groupId: Long, userId: Long) =
+        groupUserDaoService.findByUserIdAndChatId(userId, groupId)
+            .firstOrNull()
+
+    fun findAllUsersByGroupId(groupId: Long) = groupUserDaoService.findAllByGroup(groupId).toList()
+
+    fun processFishing(groupId: Long, userId: Long) = findUserByGroupIdAndUserId(groupId, userId)!!
+        .let {
+            val catch = fishingService.gainFish(it)
+            val moneyToAdd = calculateMoneyToAdd(it, catch.regard)
+
+            groupUserDaoService.changeBalance(it, it.money + moneyToAdd) to catch.apply {
+                regard = moneyToAdd
+            }
+        }
 
     private fun calculateMoneyToAdd(user: GroupUserEntity, moneyToAdd: Double) =
         if (user.money + moneyToAdd > 0) {
@@ -124,7 +138,7 @@ class TelegramService(
         }
 
     companion object {
-        private val HANDSOME_FAG_MONEY = START_MONEY_VALUE * 0.01
-        private val FEE_FOR_SLOTS = START_MONEY_VALUE * 0.025
+        private const val HANDSOME_FAG_MONEY = START_MONEY_VALUE * 0.2
+        private const val FEE_FOR_SLOTS = START_MONEY_VALUE * 0.025
     }
 }
