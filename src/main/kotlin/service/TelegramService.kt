@@ -13,6 +13,7 @@ import persistence.table.START_MONEY_VALUE
 import java.time.LocalDate
 import kotlin.math.exp
 import kotlin.math.roundToLong
+import kotlin.math.sign
 
 @Single
 class TelegramService(
@@ -120,9 +121,11 @@ class TelegramService(
 
     fun findAllUsersByGroupId(groupId: Long) = groupUserDaoService.findAllByGroup(groupId).toList()
 
+    fun addMoney(user: GroupUserEntity, moneyToAdd: Double) = groupUserDaoService.changeBalance(user, moneyToAdd)
+
     fun processFishing(groupId: Long, userId: Long) = findUserByGroupIdAndUserId(groupId, userId)!!
         .let {
-            val catch = fishingService.gainFish(it)
+            val catch = fishingService.gainFish(it) ?: return@let it to null
             val moneyToAdd = calculateMoneyToAdd(it, catch.regard)
 
             groupUserDaoService.changeBalance(it, it.money + moneyToAdd) to catch.apply {
@@ -130,11 +133,14 @@ class TelegramService(
             }
         }
 
+    fun setOrRemoveAdmin(user: GroupUserEntity, isAdmin: Boolean) =
+        groupUserDaoService.setOrRemoveAdminFlag(user, isAdmin)
+
     private fun calculateMoneyToAdd(user: GroupUserEntity, moneyToAdd: Double) =
         if (user.money + moneyToAdd > 0) {
             moneyToAdd
         } else {
-            user.money
+            user.money * sign(moneyToAdd)
         }
 
     companion object {

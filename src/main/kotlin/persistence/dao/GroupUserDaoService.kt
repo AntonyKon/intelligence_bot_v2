@@ -30,6 +30,10 @@ class GroupUserDaoService(
         money = newBalance
     }
 
+    fun setOrRemoveAdminFlag(user: GroupUserEntity, isAdmin: Boolean) = user.apply {
+        this.isAdmin = isAdmin
+    }
+
     fun findById(id: Long) = GroupUserEntity.findById(id)
 
     fun findByUserIdAndChatId(userId: Long, chatId: Long) = GroupUserEntity.find {

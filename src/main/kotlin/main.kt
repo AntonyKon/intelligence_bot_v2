@@ -14,6 +14,7 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onComman
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
 import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
+import dev.inmo.tgbotapi.extensions.utils.usernameOrNull
 import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
 import dev.inmo.tgbotapi.types.message.Markdown
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
@@ -26,6 +27,7 @@ import enumeration.DiceType
 import enumeration.FeatureToggle
 import exception.TelegramBusinessException
 import exception.TelegramError
+import filter.NicknameFilter
 import filter.OnOffFilter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -72,6 +74,10 @@ fun main(): Unit = runBlocking {
         handleMoneyRate(telegramService)
 
         handleFishing(telegramService)
+
+        handleGiveAdmin(telegramService)
+
+        handleRemoveAdmin(telegramService)
 
         handleChatEvent()
 
@@ -205,10 +211,10 @@ private suspend fun BehaviourContext.handleDice(
 
 private suspend fun BehaviourContext.handleEnableMoneyForSlots(
     featureToggleDaoService: FeatureToggleDaoService
-) = onCommandWithArgs("slots", OnOffFilter()) { message: CommonMessage<TextContent>, strings: Array<String> ->
+) = onCommandWithArgs("slots", OnOffFilter) { message: CommonMessage<TextContent>, params: Array<String> ->
     loggedTelegramTransaction {
         ifAdmin(message) { chatId, _ ->
-            val on = strings.first().equals("on", ignoreCase = true)
+            val on = params.first().equals("on", ignoreCase = true)
             featureToggleDaoService.updateOrCreateValueForFeatureToggle(
                 FeatureToggle.MONEY_FOR_SLOT_MACHINE,
                 chatId,
@@ -274,23 +280,69 @@ private suspend fun BehaviourContext.handleMoneyRate(telegramService: TelegramSe
 }
 
 private suspend fun BehaviourContext.handleFishing(telegramService: TelegramService) = onCommand("fishing") {
-    loggedTelegramTransaction { 
+    loggedTelegramTransaction {
         ifKnownUser(it) { chatId, userId ->
             val (user, catch) = telegramService.processFishing(chatId, userId)
 
-            val replyText = when (catch.name) {
-                CatchType.LARCENY -> telegramService.findAllUsersByGroupId(chatId)
-                    .random()
-                    .let { getChatMember(chatId.toChatId(), userId.toChatId()) }
-                    .user.username!!.username
-                    .let { catch.message.format(it, abs(catch.regard).toTelegramMoney()) }
-                else -> catch.message.format(abs(catch.regard).toTelegramMoney())
+            if (catch != null) {
+                val replyText = when (catch.name) {
+                    CatchType.LARCENY -> telegramService.findAllUsersByGroupId(chatId)
+                        .minus(user)
+                        .random()
+                        .also { telegramService.addMoney(it, it.money + abs(catch.regard)) }
+                        .let { getChatMember(it.groupId.toChatId(), it.telegramId.toChatId()) }
+                        .user.username!!.username
+                        .let { catch.message.format(it, abs(catch.regard).toTelegramMoney()) }
+                    else -> catch.message.format(abs(catch.regard).toTelegramMoney())
+                }
+                sendMessage(chatId.toChatId(), replyText)
+                sendMessage(chatId.toChatId(), "Сейчас у тебя ${user.money.toTelegramMoney()}")
+            } else {
+                reply(it, "Вы закидываете удочку, но, похоже, удача отвернулась от вас. Приходите на следующий день")
             }
-            sendMessage(chatId.toChatId(), replyText)
-            sendMessage(chatId.toChatId(), "Сейчас у тебя ${user.money.toTelegramMoney()}")
         }
     }
 }
+
+private suspend fun BehaviourContext.handleGiveAdmin(telegramService: TelegramService) =
+    onCommandWithArgs("give_admin", NicknameFilter) { message: CommonMessage<TextContent>, params: Array<String> ->
+        loggedTelegramTransaction {
+            ifAdmin(message) { chatId, userId ->
+                val nickname = params.first()
+                telegramService.findAllUsersByGroupId(chatId)
+                    .map { it to getChatMember(chatId.toChatId(), it.telegramId.toChatId()) }
+                    .find { it.second.user.username?.username == nickname }
+                    ?.let {
+                        if (it.first.isAdmin) {
+                            reply(message, "${it.second.fullNameOrBlank()} уже админ!")
+                        } else {
+                            telegramService.setOrRemoveAdmin(it.first, true)
+                            reply(message, "${it.second.user.username?.username} теперь является админом!")
+                        }
+                    }
+            }
+        }
+    }
+
+private suspend fun BehaviourContext.handleRemoveAdmin(telegramService: TelegramService) =
+    onCommandWithArgs("remove_admin", NicknameFilter) { message: CommonMessage<TextContent>, params: Array<String> ->
+        loggedTelegramTransaction {
+            ifAdmin(message) { chatId, userId ->
+                val nickname = params.first()
+                telegramService.findAllUsersByGroupId(chatId)
+                    .map { it to getChatMember(chatId.toChatId(), it.telegramId.toChatId()) }
+                    .find { it.second.user.username?.username == nickname }
+                    ?.let {
+                        if (!it.first.isAdmin) {
+                            reply(message, "${it.second.fullNameOrBlank()} не являлся админом!")
+                        } else {
+                            telegramService.setOrRemoveAdmin(it.first, false)
+                            reply(message, "${it.second.user.username?.username} лишился админского статуса!")
+                        }
+                    }
+            }
+        }
+    }
 
 private suspend fun BehaviourContext.handleChatEvent() =
     onChatEvent {

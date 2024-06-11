@@ -5,7 +5,7 @@ import dev.inmo.tgbotapi.extensions.utils.ifRegularTextSource
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
 
-class OnOffFilter : CommonMessageFilter<TextContent> {
+object OnOffFilter : CommonMessageFilter<TextContent> {
     override suspend fun invoke(message: CommonMessage<TextContent>): Boolean {
         return message.content.textSources
             .any {
