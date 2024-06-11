@@ -231,8 +231,7 @@ private suspend fun BehaviourContext.handleDbCommand() = onCommand("db") {
         ifAdmin(it) { _, _ ->
             runCatching {
                 val dbSuffix = ".mv.db"
-                val dbName = koin.getProperty<String>("database.url")
-                    ?.let { it.removePrefix("jdbc:h2:file:") }
+                val dbName = koin.getProperty<String>("database.url")?.removePrefix("jdbc:h2:file:")
                     ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
                 val file = File(dbName + dbSuffix).takeIf { it.exists() }
                     ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
