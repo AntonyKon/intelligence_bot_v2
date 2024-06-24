@@ -1,4 +1,4 @@
-import config.DatabaseConfig
+import config.DatabaseConfiguration
 import dev.inmo.tgbotapi.extensions.api.bot.getMe
 import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
 import dev.inmo.tgbotapi.extensions.api.delete
@@ -14,7 +14,6 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onComman
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
 import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
-import dev.inmo.tgbotapi.extensions.utils.usernameOrNull
 import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
 import dev.inmo.tgbotapi.types.message.Markdown
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
@@ -29,7 +28,6 @@ import exception.TelegramBusinessException
 import exception.TelegramError
 import filter.NicknameFilter
 import filter.OnOffFilter
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
@@ -38,7 +36,6 @@ import org.koin.fileProperties
 import org.koin.ksp.generated.*
 import persistence.dao.FeatureToggleDaoService
 import persistence.table.START_MONEY_VALUE
-import service.FishingService
 import service.TelegramService
 import java.io.File
 import kotlin.math.abs
@@ -55,7 +52,7 @@ val koin = startKoin {
 fun main(): Unit = runBlocking {
     val telegramService = koin.get<TelegramService>()
     val featureToggleDaoService = koin.get<FeatureToggleDaoService>()
-    koin.get<DatabaseConfig>().start()
+    koin.get<DatabaseConfiguration>().start()
 
     val bot = telegramBot(ENV_TOKEN)
     bot.buildBehaviourWithLongPolling {
@@ -78,6 +75,10 @@ fun main(): Unit = runBlocking {
         handleGiveAdmin(telegramService)
 
         handleRemoveAdmin(telegramService)
+
+        handleFagStats(telegramService)
+
+        handleHandsomeStats(telegramService)
 
         handleChatEvent()
 
@@ -228,19 +229,21 @@ private suspend fun BehaviourContext.handleEnableMoneyForSlots(
 
 private suspend fun BehaviourContext.handleDbCommand() = onCommand("db") {
     loggedTelegramTransaction {
-        ifAdmin(it) { _, _ ->
-            runCatching {
-                val dbSuffix = ".mv.db"
-                val dbName = koin.getProperty<String>("database.url")?.removePrefix("jdbc:h2:file:")
-                    ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
-                val file = File(dbName + dbSuffix).takeIf { it.exists() }
-                    ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
-                sendDocument(
-                    it.chat,
-                    file.readBytes().asMultipartFile(dbName + dbSuffix)
-                )
-            }.onFailure { t ->
-                reply(it, t.buildReplyMessage())
+        ifAdmin(it) { _, userId ->
+            if (userId == koin.getProperty<String>("CREATOR_ID")?.toLong()) {
+                runCatching {
+                    val dbSuffix = ".mv.db"
+                    val dbName = koin.getProperty<String>("database.url")?.removePrefix("jdbc:h2:file:")
+                        ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
+                    val file = File(dbName + dbSuffix).takeIf { it.exists() }
+                        ?: throw TelegramBusinessException(TelegramError.DB_NOT_FOUND)
+                    sendDocument(
+                        it.chat,
+                        file.readBytes().asMultipartFile(dbName + dbSuffix)
+                    )
+                }.onFailure { t ->
+                    reply(it, t.buildReplyMessage())
+                }
             }
         }
     }
@@ -328,8 +331,10 @@ private suspend fun BehaviourContext.handleRemoveAdmin(telegramService: Telegram
         loggedTelegramTransaction {
             ifAdmin(message) { chatId, userId ->
                 val nickname = params.first()
+                val creatorId = koin.getProperty<String>("CREATOR_ID")
                 telegramService.findAllUsersByGroupId(chatId)
                     .map { it to getChatMember(chatId.toChatId(), it.telegramId.toChatId()) }
+                    .filter { it.first.telegramId != creatorId?.toLong() }
                     .find { it.second.user.username?.username == nickname }
                     ?.let {
                         if (!it.first.isAdmin) {
@@ -350,6 +355,64 @@ private suspend fun BehaviourContext.handleChatEvent() =
             it.members.find {
                 it.username == getMe().username
             }?.let { sendMessage(chatId, GREETINGS_MESSAGE) }
+        }
+    }
+
+private suspend fun BehaviourContext.handleDuel() = onCommandWithArgs(
+    "duel",
+    initialFilter = NicknameFilter
+) { message: CommonMessage<TextContent>, params: Array<String> ->
+    loggedTelegramTransaction {
+        ifKnownUser(message) { chatId, userId ->
+
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleFagStats(telegramService: TelegramService) = onCommand("pidor_stats") {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, _ ->
+            var maxNameLen: Int
+
+            telegramService.getFagStats(chatId)
+                .map {
+                    getChatMember(chatId.toChatId(), it.first.telegramId.toChatId()) to it.second
+                }.also {
+                    maxNameLen = it.maxOf { it.first.fullNameOrBlank().ifBlank { "Без имени" }.length } + 5
+                }.sortedByDescending {
+                    it.second
+                }.mapIndexed { index, pair ->
+                    "${index + 1}. " +
+                        pair.first.fullNameOrBlank().ifBlank { "Без имени" }.let {
+                            it.plus(" ".repeat(maxNameLen - it.length))
+                        } + String.format("%15s", "${pair.second}x пидор")
+                }.joinToString("\n")
+                .let { sendMessage(chatId.toChatId(), pre(it).markdown, parseMode = Markdown) }
+        }
+    }
+}
+
+private suspend fun BehaviourContext.handleHandsomeStats(telegramService: TelegramService) =
+    onCommand("handsome_stats") {
+        loggedTelegramTransaction {
+            ifKnownUser(it) { chatId, _ ->
+                var maxNameLen: Int
+
+                telegramService.getHandsomeStats(chatId)
+                    .map {
+                        getChatMember(chatId.toChatId(), it.first.telegramId.toChatId()) to it.second
+                    }.also {
+                        maxNameLen = it.maxOf { it.first.fullNameOrBlank().ifBlank { "Без имени" }.length } + 5
+                    }.sortedByDescending {
+                        it.second
+                    }.mapIndexed { index, pair ->
+                        "${index + 1}. " +
+                            pair.first.fullNameOrBlank().ifBlank { "Без имени" }.let {
+                                it.plus(" ".repeat(maxNameLen - it.length))
+                            } + String.format("%15s", "${pair.second}x красавчик")
+                    }.joinToString("\n")
+                    .let { sendMessage(chatId.toChatId(), pre(it).markdown, parseMode = Markdown) }
+            }
         }
     }
 

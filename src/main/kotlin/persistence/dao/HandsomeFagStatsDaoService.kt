@@ -21,4 +21,10 @@ class HandsomeFagStatsDaoService {
         this.fagCount = if (isNeedToIncrementFag) 1 else 0
         this.handsomeCount = if (isNeedToIncrementHandsome) 1 else 0
     }
+
+    fun findStatsByUser(
+        user: GroupUserEntity
+    ) = HandsomeFagStatsEntity.find {
+        HandsomeFagStatsTable.user eq user.id
+    }.firstOrNull()
 }

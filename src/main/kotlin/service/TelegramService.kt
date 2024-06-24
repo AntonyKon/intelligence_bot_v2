@@ -136,6 +136,16 @@ class TelegramService(
     fun setOrRemoveAdmin(user: GroupUserEntity, isAdmin: Boolean) =
         groupUserDaoService.setOrRemoveAdminFlag(user, isAdmin)
 
+    fun getFagStats(groupId: Long) = groupUserDaoService.findAllByGroup(groupId)
+        .map {
+            it to (handsomeFagStatsDaoService.findStatsByUser(it)?.fagCount ?: 0)
+        }
+
+    fun getHandsomeStats(groupId: Long) = groupUserDaoService.findAllByGroup(groupId)
+        .map {
+            it to (handsomeFagStatsDaoService.findStatsByUser(it)?.handsomeCount ?: 0)
+        }
+
     private fun calculateMoneyToAdd(user: GroupUserEntity, moneyToAdd: Double) =
         if (user.money + moneyToAdd > 0) {
             moneyToAdd

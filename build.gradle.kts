@@ -44,6 +44,9 @@ dependencies {
     // h2 database
     implementation("com.h2database:h2:2.2.224")
 
+//    // sqlite
+//    implementation("org.xerial:sqlite-jdbc:3.46.0.0")
+
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")
 

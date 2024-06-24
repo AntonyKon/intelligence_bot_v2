@@ -39,10 +39,8 @@ fun <T> loggedTransaction(
 
 suspend fun <T> BehaviourContext.loggedTelegramTransaction(
     db: Database? = null,
-    logger: SqlLogger = StdOutSqlLogger,
     statement: suspend Transaction.() -> T
 ) = newSuspendedTransaction(this.coroutineContext, db, null) {
-    addLogger(logger)
     statement()
 }
 
