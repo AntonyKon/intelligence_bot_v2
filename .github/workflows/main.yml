@@ -22,10 +22,10 @@ jobs:
           username: a78354ff0bc6d98b309629a0930b7abd
           password: 8982b462ab6cf8ed82a26ebeaca1093b
 
-      name: Build and push container image to cloud evolution registry
-      uses: docker/build-push-action@v4
-      with:
-        push: true
-        tags: anton.cr.cloud.ru/intelligencebot:${{ github.sha }}
-        file: ./Dockerfile
-        context: ./
+      - name: Build and push container image to cloud evolution registry
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: anton.cr.cloud.ru/intelligencebot:${{ github.sha }}
+          file: ./Dockerfile
+          context: ./
