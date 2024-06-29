@@ -20,9 +20,17 @@ jobs:
       - name: Log in to Evolution Artifact Registry
         uses: docker/login-action@v1
         with:
-          registry: ${{ env.CR_URI }}
-          username: ${{ secrets.EVO_CR_LOGIN }}
-          password: ${{ secrets.EVO_CR_PWD }}
+          registry: anton.cr.cloud.ru
+          username: a78354ff0bc6d98b309629a0930b7abd
+          password: 8982b462ab6cf8ed82a26ebeaca1093b
+
+      name: Build and push container image to cloud evolution registry
+      uses: docker/build-push-action@v4
+      with:
+        push: true
+        tags: anton.cr.cloud.ru/intelligencebot:${{ github.sha }}
+        file: ./Dockerfile
+        context: ./
 
       - name: .NET - Build and push docker image to Evolution Aritfact Registry
         uses: docker/build-push-action@v5
