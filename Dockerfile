@@ -14,7 +14,7 @@ ENV LC_ALL en_US.UTF-8
 COPY . /app
 
 RUN ./gradlew clean build --no-daemon
-RUN ls
+RUN chmod a+rwx *.db
 
 ENTRYPOINT [ \
     "java", \
