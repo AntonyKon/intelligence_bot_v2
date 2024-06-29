@@ -61,15 +61,13 @@ fun main(): Unit = runBlocking {
     koin.get<DatabaseConfiguration>().start()
     val port = koin.getProperty<String>("SERVER_PORT")!!
 
-    launch {
-        embeddedServer(Netty, port = port.toInt()) {
-            routing {
-                get ("/") {
-                    call.respondText("OK")
-                }
+    embeddedServer(Netty, port = port.toInt()) {
+        routing {
+            get ("/") {
+                call.respondText("OK")
             }
-        }.start(wait = true)
-    }
+        }
+    }.start(wait = false)
 
     val bot = telegramBot(ENV_TOKEN)
     bot.buildBehaviourWithLongPolling {
