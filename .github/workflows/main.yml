@@ -31,3 +31,5 @@ jobs:
           tags: ${{ env.CR_URI }}/intelligencebot:${{ github.sha }}
           file: ./Dockerfile
           context: ./
+          args:
+            - '--platform linux/amd64'
