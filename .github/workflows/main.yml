@@ -2,9 +2,9 @@ name: Build Docker Image and Push to Evolution Artifact Registry
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 env:
   CR_URI: anton.cr.cloud.ru
 jobs:
