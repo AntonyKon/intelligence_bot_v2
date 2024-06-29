@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+env:
+  CR_URI: anton.cr.cloud.ru
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,7 +20,7 @@ jobs:
       - name: Log in to Evolution Artifact Registry
         uses: docker/login-action@v1
         with:
-          registry: anton.cr.cloud.ru
+          registry: ${{ env.CR_URI }}
           username: a78354ff0bc6d98b309629a0930b7abd
           password: 8982b462ab6cf8ed82a26ebeaca1093b
 
@@ -26,6 +28,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: anton.cr.cloud.ru/intelligencebot:${{ github.sha }}
+          tags: ${{ env.CR_URI }}/intelligencebot:${{ github.sha }}
           file: ./Dockerfile
           context: ./
