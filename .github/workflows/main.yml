@@ -28,6 +28,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: ${{ env.CR_URI }}/intelligencebot:${{ github.sha }}
+          tags: ${{ env.CR_URI }}/${{ github.repository }}:${{ github.sha }}
           file: ./Dockerfile
           context: ./
