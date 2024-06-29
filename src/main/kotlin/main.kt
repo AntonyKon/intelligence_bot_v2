@@ -28,6 +28,12 @@ import exception.TelegramBusinessException
 import exception.TelegramError
 import filter.NicknameFilter
 import filter.OnOffFilter
+import io.ktor.server.application.*
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
@@ -53,6 +59,17 @@ fun main(): Unit = runBlocking {
     val telegramService = koin.get<TelegramService>()
     val featureToggleDaoService = koin.get<FeatureToggleDaoService>()
     koin.get<DatabaseConfiguration>().start()
+    val port = koin.getProperty<String>("SERVER_PORT")!!
+
+    launch {
+        embeddedServer(Netty, port = port.toInt()) {
+            routing {
+                get ("/") {
+                    call.respondText("OK")
+                }
+            }
+        }.start(wait = true)
+    }
 
     val bot = telegramBot(ENV_TOKEN)
     bot.buildBehaviourWithLongPolling {

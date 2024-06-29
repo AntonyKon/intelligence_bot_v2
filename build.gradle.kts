@@ -47,6 +47,8 @@ dependencies {
 //    // sqlite
 //    implementation("org.xerial:sqlite-jdbc:3.46.0.0")
 
+    implementation("io.ktor:ktor-server-netty:2.3.10")
+
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")
 
