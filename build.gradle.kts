@@ -52,8 +52,13 @@ dependencies {
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")
 
-    // kaml - yaml reading
+    // yaml reading
     implementation("com.charleskorn.kaml:kaml:0.59.0")
+    implementation("com.squareup.okio:okio:3.5.0")
+    implementation("it.krzeminski:snakeyaml-engine-kmp:2.7.4")
+    implementation("org.yaml:snakeyaml:1.30")
+    implementation("net.thauvin.erik.urlencoder:urlencoder-lib-jvm:1.5.0")
+
 }
 
 tasks.test {

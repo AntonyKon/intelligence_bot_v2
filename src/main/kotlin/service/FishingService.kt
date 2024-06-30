@@ -36,7 +36,7 @@ class FishingService(
         val catches = javaClass.classLoader.getResource("fishing.yml")?.readText()
             ?.let { Yaml.default.decodeFromString<Fishing>(it) }
             ?.catches
-            ?.filter { !(user.money == 0.0 && it.regard < 0) }
+            ?.filterNot { user.money == 0.0 && it.regard < 0 }
             ?.map {
                 accumulationSum += it.probability
                 it to accumulationSum
