@@ -1,4 +1,5 @@
 import config.DatabaseConfiguration
+import dev.inmo.micro_utils.coroutines.defaultSafelyExceptionHandler
 import dev.inmo.tgbotapi.extensions.api.bot.getMe
 import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
 import dev.inmo.tgbotapi.extensions.api.delete
@@ -69,35 +70,41 @@ fun main(): Unit = runBlocking {
     }.start(wait = false)
 
     val bot = telegramBot(ENV_TOKEN)
-    bot.buildBehaviourWithLongPolling {
-        handleStartOrJoinCommand(telegramService)
+    while (true) {
+        runCatching {
+            bot.buildBehaviourWithLongPolling(
+                defaultExceptionsHandler = defaultSafelyExceptionHandler
+            ) {
+                handleStartOrJoinCommand(telegramService)
 
-        handlePidorCommand(telegramService)
+                handlePidorCommand(telegramService)
 
-        handleHandsomeCommand(telegramService)
+                handleHandsomeCommand(telegramService)
 
-        handleDice(telegramService, featureToggleDaoService)
+                handleDice(telegramService, featureToggleDaoService)
 
-        handleEnableMoneyForSlots(featureToggleDaoService)
+                handleEnableMoneyForSlots(featureToggleDaoService)
 
-        handleUserMoney(telegramService)
+                handleUserMoney(telegramService)
 
-        handleMoneyRate(telegramService)
+                handleMoneyRate(telegramService)
 
-        handleFishing(telegramService)
+                handleFishing(telegramService)
 
-        handleGiveAdmin(telegramService)
+                handleGiveAdmin(telegramService)
 
-        handleRemoveAdmin(telegramService)
+                handleRemoveAdmin(telegramService)
 
-        handleFagStats(telegramService)
+                handleFagStats(telegramService)
 
-        handleHandsomeStats(telegramService)
+                handleHandsomeStats(telegramService)
 
-        handleChatEvent()
+                handleChatEvent()
 
-        handleDbCommand()
-    }.join()
+                handleDbCommand()
+            }.join()
+        }.onFailure { it.printStackTrace() }
+    }
 }
 
 private suspend fun BehaviourContext.handleStartOrJoinCommand(telegramService: TelegramService) =
