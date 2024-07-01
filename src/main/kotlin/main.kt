@@ -34,6 +34,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
@@ -104,6 +105,7 @@ fun main(): Unit = runBlocking {
                 handleDbCommand()
             }.join()
         }.onFailure { it.printStackTrace() }
+        delay(5000)
     }
 }
 
