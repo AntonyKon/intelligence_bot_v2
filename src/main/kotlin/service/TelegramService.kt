@@ -1,5 +1,6 @@
 package service
 
+import client.currency.CurrencyConverterClient
 import dev.inmo.tgbotapi.types.dice.Dice
 import exception.TelegramBusinessException
 import exception.TelegramError
@@ -20,7 +21,8 @@ class TelegramService(
     private val groupUserDaoService: GroupUserDaoService,
     private val handsomeFagFlagDaoService: HandsomeFagFlagDaoService,
     private val handsomeFagStatsDaoService: HandsomeFagStatsDaoService,
-    private val fishingService: FishingService
+    private val fishingService: FishingService,
+    private val currencyConverterClient: CurrencyConverterClient
 ) {
     fun createUserIfNotExist(groupId: Long, userId: Long) = if (!groupUserDaoService.userExists(userId, groupId)) {
         groupUserDaoService.createNewUser(userId, groupId)
@@ -145,6 +147,8 @@ class TelegramService(
         .map {
             it to (handsomeFagStatsDaoService.findStatsByUser(it)?.handsomeCount ?: 0)
         }
+
+    suspend fun createConversionForUser(userId: Long, groupId: Long) = currencyConverterClient.createConversion()
 
     private fun calculateMoneyToAdd(user: GroupUserEntity, moneyToAdd: Double) =
         if (user.money + moneyToAdd > 0) {

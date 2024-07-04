@@ -11,6 +11,7 @@ version = "1.0-SNAPSHOT"
 val koinVersion = "3.5.6"
 val kspVersion = "1.3.1"
 val exposedVersion = "0.51.0"
+val ktorVersion = "2.3.10"
 
 repositories {
     mavenCentral()
@@ -47,7 +48,9 @@ dependencies {
 //    // sqlite
 //    implementation("org.xerial:sqlite-jdbc:3.46.0.0")
 
-    implementation("io.ktor:ktor-server-netty:2.3.10")
+    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
     // flyway
     implementation("org.flywaydb:flyway-core:10.14.0")

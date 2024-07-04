@@ -10,18 +10,36 @@ import dev.inmo.tgbotapi.extensions.api.send.setMessageReaction
 import dev.inmo.tgbotapi.extensions.api.telegramBot
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.buildBehaviourWithLongPolling
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitCallbackQueries
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitDataCallbackQuery
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitInlineMessageIdCallbackQuery
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onChatEvent
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
+import dev.inmo.tgbotapi.extensions.utils.commonMessageOrThrow
+import dev.inmo.tgbotapi.extensions.utils.dataCallbackQueryOrNull
+import dev.inmo.tgbotapi.extensions.utils.extensions.raw.data
+import dev.inmo.tgbotapi.extensions.utils.extensions.raw.message
+import dev.inmo.tgbotapi.extensions.utils.ifCommonGroupContentMessage
+import dev.inmo.tgbotapi.extensions.utils.ifCommonMessage
 import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
+import dev.inmo.tgbotapi.extensions.utils.messageCallbackQueryOrNull
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.InlineKeyboardMarkup
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.dataButton
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.flatInlineKeyboard
 import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
+import dev.inmo.tgbotapi.requests.send.SendTextMessage
+import dev.inmo.tgbotapi.types.buttons.InlineKeyboardButtons.InlineKeyboardButton
+import dev.inmo.tgbotapi.types.buttons.inline.dataInlineButton
 import dev.inmo.tgbotapi.types.message.Markdown
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import dev.inmo.tgbotapi.types.message.textsources.pre
+import dev.inmo.tgbotapi.types.queries.callback.DataCallbackQuery
 import dev.inmo.tgbotapi.types.toChatId
 import dev.inmo.tgbotapi.types.userLink
+import dev.inmo.tgbotapi.utils.flatMatrix
 import enumeration.CatchType
 import enumeration.DiceType
 import enumeration.FeatureToggle
@@ -35,6 +53,8 @@ import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
@@ -99,6 +119,8 @@ fun main(): Unit = runBlocking {
                 handleFagStats(telegramService)
 
                 handleHandsomeStats(telegramService)
+
+                handleCurrencyBet(telegramService)
 
                 handleChatEvent()
 
@@ -438,6 +460,32 @@ private suspend fun BehaviourContext.handleHandsomeStats(telegramService: Telegr
             }
         }
     }
+
+private suspend fun BehaviourContext.handleCurrencyBet(telegramService: TelegramService) = onCommand("currency_bet") {
+    loggedTelegramTransaction {
+        ifKnownUser(it) { chatId, userId ->
+            val replyMarkup = flatInlineKeyboard {
+                dataButton("1 день", "currency_bet d 1")
+                dataButton("2 дня", "currency_bet d 2")
+                dataButton("7 дней", "currency_bet d 7")
+            }
+
+            val message = telegramService.createConversionForUser(userId, chatId)?.let {
+                    "1 ${it.sourceCurrency} = ${it.resultAmount} ${it.targetCurrency}\n\nВыберите время, ставки"
+                } ?: return@ifKnownUser
+
+            waitDataCallbackQuery(
+                SendTextMessage(chatId.toChatId(), message, replyMarkup = replyMarkup)
+            ).collectLatest { query ->
+                query.messageCallbackQueryOrNull()?.message?.ifCommonMessage {
+                    withChatIdAndUserId(it) { queryChatId, _ ->
+                        sendMessage(queryChatId.toChatId(), query.data)
+                    }
+                }
+            }
+        }
+    }
+}
 
 private const val GREETINGS_MESSAGE = "Всем добрый денек (кроме Клюшкина)!!!\n\n" +
     "Для разблокировки всех функций бота ему надо выдать права админа.\n" +
