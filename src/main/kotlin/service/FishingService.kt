@@ -20,6 +20,8 @@ class FishingService(
 ) {
 
     private val random = Random.Default
+    private val fishing = javaClass.classLoader.getResource("fishing.yml")?.readText()
+        ?.let { Yaml.default.decodeFromString<Fishing>(it) }
 
     fun gainFish(user: GroupUserEntity): FishCatch? {
         val userFishingStats = fishingStatsDaoService.findByUserOrCreate(user).apply {
@@ -33,9 +35,7 @@ class FishingService(
         }
 
         var accumulationSum = 0.0
-        val catches = javaClass.classLoader.getResource("fishing.yml")?.readText()
-            ?.let { Yaml.default.decodeFromString<Fishing>(it) }
-            ?.catches
+        val catches = fishing?.catches
             ?.filterNot { user.money == 0.0 && it.regard < 0 }
             ?.map {
                 accumulationSum += it.probability

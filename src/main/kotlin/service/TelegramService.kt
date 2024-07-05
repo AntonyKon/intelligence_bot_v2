@@ -22,10 +22,11 @@ class TelegramService(
     private val handsomeFagStatsDaoService: HandsomeFagStatsDaoService,
     private val fishingService: FishingService
 ) {
-    fun createUserIfNotExist(groupId: Long, userId: Long) = if (!groupUserDaoService.userExists(userId, groupId)) {
-        groupUserDaoService.createNewUser(userId, groupId)
-        true
-    } else false
+    fun createUserIfNotExist(groupId: Long, userId: Long, isCreator: Boolean) =
+        if (!groupUserDaoService.userExists(userId, groupId)) {
+            groupUserDaoService.createNewUser(userId, groupId, isCreator)
+            true
+        } else false
 
     fun findFagUser(groupId: Long) = loggedTransaction {
         val handsomeFagFlag = handsomeFagFlagDaoService.findByGroupId(groupId)

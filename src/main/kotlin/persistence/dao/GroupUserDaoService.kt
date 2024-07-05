@@ -12,10 +12,10 @@ class GroupUserDaoService(
     private val creatorTelegramId: String
 ) {
 
-    fun createNewUser(telegramId: Long, groupId: Long) = GroupUserEntity.new {
+    fun createNewUser(telegramId: Long, groupId: Long, isCreator: Boolean) = GroupUserEntity.new {
         this.telegramId = telegramId
         this.groupId = groupId
-        this.isAdmin = telegramId == creatorTelegramId.toLong()
+        this.isAdmin = telegramId == creatorTelegramId.toLong() || isCreator
     }
 
     fun userExists(telegramId: Long, groupId: Long) = GroupUserEntity.find {

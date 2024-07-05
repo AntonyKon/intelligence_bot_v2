@@ -14,6 +14,7 @@ import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import persistence.entity.GroupUserEntity
 import service.TelegramService
 
 fun <T : MessageContent> CommonMessage<T>.fullNameOfUserOrBlank() = ifPrivateContentMessage {
@@ -54,6 +55,8 @@ fun ChatMember.fullNameOrBlank() = listOfNotNull(
     user.firstName,
     user.lastName.ifBlank { null }
 ).joinToString(" ").trim()
+
+fun ChatMember.usernameOrBlank() = user.username?.username.orEmpty()
 
 fun Throwable.buildReplyMessage() = "Не удалось выполнить действие\n$message"
 
