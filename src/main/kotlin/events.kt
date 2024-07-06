@@ -1,3 +1,4 @@
+import dev.inmo.micro_utils.coroutines.runCatchingSafely
 import dev.inmo.tgbotapi.bot.TelegramBot
 import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
 import dev.inmo.tgbotapi.extensions.api.send.sendMessage
@@ -36,21 +37,23 @@ suspend fun CoroutineScope.dailyEvents() = produce {
 
 suspend fun processEvents(events: ReceiveChannel<EventDto>, bot: TelegramBot) = events.consumeEach { dto ->
     println(dto)
-    newSuspendedTransaction {
-        runCatching {
-            telegramService.addMoney(dto.user, dto.user.money + dto.regard)
+    runCatchingSafely {
+        newSuspendedTransaction {
+            telegramService.addMoney(dto.user, dto.regard)
             bot.getChatMember(dto.user.groupId.toChatId(), dto.user.telegramId.toChatId())
                 .let {
                     dto.event.message.format(
                         it.usernameOrBlank().ifBlank {
                             it.fullNameOrBlank().ifBlank { "no-name" }
                         },
-                        abs(dto.regard)
+                        abs(dto.regard).toTelegramMoney()
                     )
                 }
                 .let { bot.sendMessage(dto.user.groupId.toChatId(), it) }
                 .also { eventService.updateEvent(dto.user.groupId) }
-        }.onFailure { it.printStackTrace() }
+        }
+    }.onFailure {
+        it.printStackTrace()
     }
 }
 

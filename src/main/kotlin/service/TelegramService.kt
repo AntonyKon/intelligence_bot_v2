@@ -122,7 +122,8 @@ class TelegramService(
 
     fun findAllUsersByGroupId(groupId: Long) = groupUserDaoService.findAllByGroup(groupId).toList()
 
-    fun addMoney(user: GroupUserEntity, moneyToAdd: Double) = groupUserDaoService.changeBalance(user, moneyToAdd)
+    fun addMoney(user: GroupUserEntity, moneyToAdd: Double) = calculateMoneyToAdd(user, moneyToAdd)
+        .let { groupUserDaoService.changeBalance(user, user.money + it) }
 
     fun processFishing(groupId: Long, userId: Long) = findUserByGroupIdAndUserId(groupId, userId)!!
         .let {
@@ -146,6 +147,8 @@ class TelegramService(
         .map {
             it to (handsomeFagStatsDaoService.findStatsByUser(it)?.handsomeCount ?: 0)
         }
+
+    fun findAllChatGroups() = groupUserDaoService.findAllGroups()
 
     private fun calculateMoneyToAdd(user: GroupUserEntity, moneyToAdd: Double) =
         if (user.money + moneyToAdd > 0) {

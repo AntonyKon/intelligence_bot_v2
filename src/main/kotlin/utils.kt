@@ -14,6 +14,7 @@ import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import persistence.dao.GroupUserDaoService
 import persistence.entity.GroupUserEntity
 import service.TelegramService
 
@@ -79,6 +80,18 @@ suspend fun <T : MessageContent> BehaviourContext.ifAdmin(
     onEvent: suspend BehaviourContext.(chatId: Long, userId: Long) -> Unit
 ) = withChatIdAndUserId(message) { chatId, userId ->
     if (koin.get<TelegramService>().isUserAdmin(chatId, userId))
+        onEvent(chatId, userId)
+    else
+        reply(message, "У тебя нет прав на выполнение этой команды")
+}
+
+suspend fun <T : MessageContent> BehaviourContext.ifCreator(
+    message: CommonMessage<T>,
+    onEvent: suspend BehaviourContext.(chatId: Long, userId: Long) -> Unit
+) = withChatIdAndUserId(message) { chatId, userId ->
+    val creatorId = koin.getProperty<String>("CREATOR_ID")?.toLong()
+    val user = koin.get<TelegramService>().findUserByGroupIdAndUserId(chatId, userId)!!
+    if (user.telegramId == creatorId)
         onEvent(chatId, userId)
     else
         reply(message, "У тебя нет прав на выполнение этой команды")

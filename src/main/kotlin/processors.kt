@@ -1,4 +1,5 @@
 import dev.inmo.tgbotapi.extensions.api.bot.getMe
+import dev.inmo.tgbotapi.extensions.api.chat.get.getChat
 import dev.inmo.tgbotapi.extensions.api.chat.members.getChatMember
 import dev.inmo.tgbotapi.extensions.api.delete
 import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
@@ -6,12 +7,16 @@ import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.api.send.sendMessage
 import dev.inmo.tgbotapi.extensions.api.send.setMessageReaction
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onChatEvent
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDice
+import dev.inmo.tgbotapi.extensions.utils.extensions.raw.text
+import dev.inmo.tgbotapi.extensions.utils.ifGroupChat
 import dev.inmo.tgbotapi.extensions.utils.ifNewChatMembers
 import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
+import dev.inmo.tgbotapi.requests.send.SendTextMessage
 import dev.inmo.tgbotapi.types.chat.member.ChatMember
 import dev.inmo.tgbotapi.types.message.Markdown
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
@@ -25,16 +30,19 @@ import enumeration.FeatureToggle
 import exception.TelegramBusinessException
 import exception.TelegramError
 import filter.NicknameFilter
+import filter.NicknameMoneyFilter
 import filter.OnOffFilter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import persistence.table.START_MONEY_VALUE
 import java.io.File
 import kotlin.math.abs
 
 suspend fun BehaviourContext.handleStartOrJoinCommand() =
     onCommand("(start)|(join)".toRegex()) {
-        loggedTelegramTransaction {
-            withChatIdAndUserId(it) { chatId, userId ->
-                runCatching {
+        runCatching {
+            loggedTelegramTransaction {
+                withChatIdAndUserId(it) { chatId, userId ->
                     val isCreator =
                         getChatMember(chatId.toChatId(), userId.toChatId()).status == ChatMember.Status.Creator
                     val replyText =
@@ -46,18 +54,18 @@ suspend fun BehaviourContext.handleStartOrJoinCommand() =
                             "Ты уже подключен к боту!"
                         }
                     reply(it, replyText)
-                }.onFailure { t ->
-                    t.printStackTrace()
-                    reply(it, t.buildReplyMessage())
                 }
             }
+        }.onFailure { t ->
+            t.printStackTrace()
+            reply(it, t.buildReplyMessage())
         }
     }
 
 suspend fun BehaviourContext.handlePidorCommand() = onCommand("pidor") {
-    loggedTelegramTransaction {
-        ifKnownUser(it) { chatId, _ ->
-            runCatching {
+    runCatching {
+        loggedTelegramTransaction {
+            ifKnownUser(it) { chatId, _ ->
                 val (user, isNeedToChangeBalance) = telegramService.findFagUser(chatId)
                 val chatMember = getChatMember(chatId = chatId.toChatId(), userId = user.telegramId.toChatId())
                 val nameAndUsername = listOf(
@@ -74,19 +82,19 @@ suspend fun BehaviourContext.handlePidorCommand() = onCommand("pidor") {
                 } else {
                     sendMessage(chatId.toChatId(), "Пидор дня уже определен: это $nameAndUsername!!!")
                 }
-            }.onFailure { t ->
-                t.printStackTrace()
-                reply(it, t.buildReplyMessage())
             }
         }
+    }.onFailure { t ->
+        t.printStackTrace()
+        reply(it, t.buildReplyMessage())
     }
 }
 
 suspend fun BehaviourContext.handleHandsomeCommand() =
     onCommand("handsome") {
-        loggedTelegramTransaction {
-            ifKnownUser(it) { chatId, _ ->
-                runCatching {
+        runCatching {
+            loggedTelegramTransaction {
+                ifKnownUser(it) { chatId, _ ->
                     val (user, isNeedToChangeBalance) = telegramService.findHandsomeUser(chatId)
                     val chatMember = getChatMember(chatId = chatId.toChatId(), userId = user.telegramId.toChatId())
                     val nameAndUsername = listOf(
@@ -103,23 +111,24 @@ suspend fun BehaviourContext.handleHandsomeCommand() =
                     } else {
                         sendMessage(chatId.toChatId(), "Красавчик дня уже определен: это $nameAndUsername!!!")
                     }
-                }.onFailure { t ->
-                    t.printStackTrace()
-                    reply(it, t.buildReplyMessage())
                 }
             }
+        }.onFailure { t ->
+            t.printStackTrace()
+            reply(it, t.buildReplyMessage())
         }
     }
 
 suspend fun BehaviourContext.handleDice() = onDice {
-    loggedTelegramTransaction {
-        ifKnownUser(it) { chatId, userId ->
-            if (
-                featureToggleDaoService.readValueForEnum(chatId, FeatureToggle.MONEY_FOR_SLOT_MACHINE).toBoolean() &&
-                DiceType.getType(it.content.dice) == DiceType.SLOT_MACHINE &&
-                it.forwardOrigin == null
-            ) {
-                runCatching {
+    runCatching {
+        loggedTelegramTransaction {
+            ifKnownUser(it) { chatId, userId ->
+                if (
+                    featureToggleDaoService.readValueForEnum(chatId, FeatureToggle.MONEY_FOR_SLOT_MACHINE)
+                        .toBoolean() &&
+                    DiceType.getType(it.content.dice) == DiceType.SLOT_MACHINE &&
+                    it.forwardOrigin == null
+                ) {
                     val (user, fee) = telegramService.takeMoneyForSlot(chatId, userId)
 
                     if (fee != null) {
@@ -144,29 +153,30 @@ suspend fun BehaviourContext.handleDice() = onDice {
                         )
                         delete(it)
                     }
-                }.onFailure { t ->
-                    t.printStackTrace()
-                    reply(it, t.buildReplyMessage())
                 }
             }
         }
+    }.onFailure { t ->
+        t.printStackTrace()
+        reply(it, t.buildReplyMessage())
     }
 }
 
-suspend fun BehaviourContext.handleEnableMoneyForSlots() = onCommandWithArgs("slots", OnOffFilter) { message: CommonMessage<TextContent>, params: Array<String> ->
-    loggedTelegramTransaction {
-        ifAdmin(message) { chatId, _ ->
-            val on = params.first().equals("on", ignoreCase = true)
-            featureToggleDaoService.updateOrCreateValueForFeatureToggle(
-                FeatureToggle.MONEY_FOR_SLOT_MACHINE,
-                chatId,
-                on.toString()
-            )
+suspend fun BehaviourContext.handleEnableMoneyForSlots() =
+    onCommandWithArgs("slots", OnOffFilter) { message: CommonMessage<TextContent>, params: Array<String> ->
+        loggedTelegramTransaction {
+            ifAdmin(message) { chatId, _ ->
+                val on = params.first().equals("on", ignoreCase = true)
+                featureToggleDaoService.updateOrCreateValueForFeatureToggle(
+                    FeatureToggle.MONEY_FOR_SLOT_MACHINE,
+                    chatId,
+                    on.toString()
+                )
 
-            reply(message, "Получение денег за слот машину ${if (on) "включено" else "выключено"}!")
+                reply(message, "Получение денег за слот машину ${if (on) "включено" else "выключено"}!")
+            }
         }
     }
-}
 
 suspend fun BehaviourContext.handleDbCommand() = onCommand("db") {
     loggedTelegramTransaction {
@@ -235,7 +245,7 @@ suspend fun BehaviourContext.handleFishing() = onCommand("fishing") {
                     CatchType.LARCENY -> telegramService.findAllUsersByGroupId(chatId)
                         .minus(user)
                         .random()
-                        .also { telegramService.addMoney(it, it.money + abs(catch.regard)) }
+                        .also { telegramService.addMoney(it, abs(catch.regard)) }
                         .let { getChatMember(it.groupId.toChatId(), it.telegramId.toChatId()) }
                         .user.username!!.username
                         .let { catch.message.format(it, abs(catch.regard).toTelegramMoney()) }
@@ -359,6 +369,68 @@ suspend fun BehaviourContext.handleHandsomeStats() =
             }
         }
     }
+
+suspend fun BehaviourContext.handleGiveMoney() = onCommandWithArgs(
+    "give_money",
+    initialFilter = NicknameMoneyFilter
+) { message: CommonMessage<TextContent>, params: Array<String> ->
+    runCatching {
+        loggedTelegramTransaction {
+            ifKnownUser(message) { chatId, userId ->
+                val paramsList = params.filterNot { it.isEmpty() }
+                val nickname = paramsList[0]
+                val present = paramsList[1].toDouble()
+                val user = telegramService.findUserByGroupIdAndUserId(chatId, userId)?.takeIf { it.money >= present }
+                    ?: reply(message, "У тебя недостаточно денег для такого подарка!").let { return@ifKnownUser }
+                telegramService.findAllUsersByGroupId(chatId)
+                    .minus(user)
+                    .associateBy {
+                        getChatMember(
+                            it.groupId.toChatId(),
+                            it.telegramId.toChatId()
+                        ).usernameOrBlank()
+                    }[nickname]
+                    ?.let { telegramService.addMoney(it, present) }
+                    ?.let { telegramService.addMoney(user, -present) }
+                    ?.also { reply(message, "Вы успешно передали $nickname ${present.toTelegramMoney()}!") }
+            }
+        }
+    }.onFailure { t ->
+        t.printStackTrace()
+        reply(message, t.buildReplyMessage())
+    }
+}
+
+suspend fun BehaviourContext.handleBroadcast() = onCommand("broadcast") {
+    runCatching {
+        loggedTelegramTransaction {
+            ifCreator(it) { chatId, userId ->
+                val message = waitTextMessage(
+                    SendTextMessage(
+                        chatId.toChatId(),
+                        "Введите сообщение для отправки в чаты"
+                    )
+                ).first {
+                    val (messageChatId, messageUserId) = it.getChatIdAndUserId()
+                    messageChatId == chatId && messageUserId == userId
+                }.content.text
+
+                telegramService.findAllChatGroups()
+                    .mapNotNull {
+                        runCatching {
+                            getChat(it.toChatId())
+                        }.getOrNull()
+                    }.forEach {
+                        runCatching {
+                            sendMessage(it.id, message)
+                        }
+                    }.also {
+                        sendMessage(chatId.toChatId(), "Все сообщения успешно отправлены")
+                    }
+            }
+        }
+    }.onFailure { it.printStackTrace() }
+}
 
 private const val GREETINGS_MESSAGE = "Всем добрый денек (кроме Клюшкина)!!!\n\n" +
     "Для разблокировки всех функций бота ему надо выдать права админа.\n" +

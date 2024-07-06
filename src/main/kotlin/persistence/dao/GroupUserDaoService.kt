@@ -39,4 +39,8 @@ class GroupUserDaoService(
     fun findByUserIdAndChatId(userId: Long, chatId: Long) = GroupUserEntity.find {
         (GroupUsersTable.groupId eq chatId) and (GroupUsersTable.telegramId eq userId)
     }
+
+    fun findAllGroups() = GroupUserEntity.all()
+        .distinctBy { it.groupId }
+        .map { it.groupId }
 }
