@@ -9,7 +9,7 @@ data class FishCatch(
     val name: CatchType,
     val message: String,
     val probability: Double,
-    var regard: Double,
+    val regard: Double,
     val esteem: Double
 )
 

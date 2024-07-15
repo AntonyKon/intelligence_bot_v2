@@ -130,9 +130,7 @@ class TelegramService(
             val catch = fishingService.gainFish(it) ?: return@let it to null
             val moneyToAdd = calculateMoneyToAdd(it, catch.regard)
 
-            groupUserDaoService.changeBalance(it, it.money + moneyToAdd) to catch.apply {
-                regard = moneyToAdd
-            }
+            groupUserDaoService.changeBalance(it, it.money + moneyToAdd) to catch.copy(regard = moneyToAdd)
         }
 
     fun setOrRemoveAdmin(user: GroupUserEntity, isAdmin: Boolean) =
